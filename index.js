@@ -49,7 +49,40 @@ async function run() {
       const result = await petCollection.findOne(query);
       res.send(result);
     });
+    // upadte a pet data--------------------------------------------------------------------------
+app.put('/pet/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const filter = { _id: new ObjectId(id) };
+    const options = { upsert: true };
+    const updatePet = req.body;
+    const pet = {
+      $set: {
+        name: updatePet.name,
+        age: updatePet.age,
+        breed: updatePet.breed,
+        details: updatePet.details,
+        longDescription: updatePet.longDescription,
+        status: updatePet.status,
+        location: updatePet.location,
+        image: updatePet.image
+      }
+    };
+    const result = await petCollection.updateOne(filter, pet, options); 
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ error: 'Failed to update pet' });
+  }
+});
+// delete pet
+app.delete('/pet/:id' , async(req,res)=>{
+  const id = req.params.id;
+  const query = {_id: new ObjectId(id) }
+  const result = await  petCollection.deleteOne(query);
+  res.send(result)
+})
 
+// --------------------------------------------------------------------------------------------------------------
     // post a new pet
     app.post('/pet', async (req, res) => {
       const item = req.body;
@@ -76,13 +109,23 @@ async function run() {
       res.send(result);
     });
 
-    // get cart items for a user
-    app.get('/carts', async (req, res) => {
-      const email = req.query.email;
-      const query = { email: email };
-      const result = await cartCollection.find(query).toArray();
+    app.post('/campaigns', async (req, res) => {
+      const item = req.body;
+      const result = await campaignsCollection.insertOne(item);
       res.send(result);
     });
+// catrs it means all adoption request get
+    // get cart items for a user
+    app.get('/carts', async (req, res) => {
+      const result = await cartCollection.find().toArray();
+      res.send(result);
+    });
+    // app.get('/carts', async (req, res) => {
+    //   const email = req.query.email;
+    //   const query = { email: email };
+    //   const result = await cartCollection.find(query).toArray();
+    //   res.send(result);
+    // });
 
     // post a new cart item
     app.post('/carts', async (req, res) => {
