@@ -4,6 +4,8 @@ const jwt =  require('jsonwebtoken');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 const app = express();
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
 const port = process.env.PORT || 5000;
 
 // middleware
@@ -31,6 +33,7 @@ async function run() {
     const userCollection = client.db("pawpixieDb").collection("users");
     const campaignsCollection = client.db("pawpixieDb").collection("campaigns");
     const cartCollection = client.db("pawpixieDb").collection("carts");
+    const donationCollection = client.db("pawpixieDb").collection("donations");
 
 
 
@@ -180,7 +183,7 @@ app.delete('/pet/:id' , async(req,res)=>{
       res.send(result);
     });
 
-    // Update pet adoption status
+    // Update pet adoption status -->  true korte
     app.put('/pet/adopt/:id', async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -192,12 +195,106 @@ app.delete('/pet/:id' , async(req,res)=>{
       const result = await petCollection.updateOne(query, updateDoc);
       res.send(result);
     });
+    // ------------------------------------------
+    app.put('/pet/adoptw/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          adopted: true
+        },
+      };
+      const result = await petCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+    app.put('/pet/adopty/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          adopted: false
+        },
+      };
+      const result = await petCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+    // ---------------------------------> false korte
+    app.put('/pet/adopti/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          adopted: false
+        },
+      };
+      const result = await petCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
+    // ---------------------------------
 
     // get all campaigns data in campaigns collection
     app.get('/campaigns', async (req, res) => {
       const result = await campaignsCollection.find().toArray();
       res.send(result);
     });
+    // patch in my backend------------
+    app.patch('/campaigns/pause/:id', async (req, res) => {
+      const { id } = req.params;
+      console.log(id);
+      try {
+        await campaignsCollection.findOneAndUpdate({_id: new ObjectId(id)}, { $set:{ status: 'paused' }});
+        res.json({ message: 'Campaign paused successfully' });
+      } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: 'Error pausing campaign', error });
+      }
+    });
+    // app.get('/donations', async (req, res) => {
+    //   const { campaignId } = req.query;
+    //   try {
+    //     const donations = await Donation.find({ campaignId });
+    //     res.json(donations);
+    //   } catch (error) {
+    //     res.status(500).json({ message: 'Error fetching donators', error });
+    //   }
+    // });
+    // ---------------campaings update
+    app.put('/campaigns/:id', async (req, res) => {
+      const id = req.params.id;
+      const updatedAmount = req.body.donatedAmount; // Ensure this matches the key used in the request
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          donatedAmount: updatedAmount // Corrected this typo
+        },
+      };
+      try {
+        const result = await campaignsCollection.updateOne(query, updateDoc);
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: 'Error updating campaign' });
+      }
+    });app.put('/campaigns/:id', async (req, res) => {
+      const id = req.params.id;
+      const updatedAmount = req.body.donatedAmount; // Ensure this matches the key used in the request
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          donatedAmount: updatedAmount // Corrected this typo
+        },
+      };
+      try {
+        const result = await campaignsCollection.updateOne(query, updateDoc);
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: 'Error updating campaign' });
+      }
+    });
+
+
     // -------------------------------
   
     // -------------------------------
@@ -229,12 +326,77 @@ app.delete('/pet/:id' , async(req,res)=>{
       res.send(result)
     })
 
+    // ----------------------accepted
+    app.put('/carts/accept/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          adopted: true
+        },
+      };
+      const result = await cartCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+    // ----------------------------cancel
+    app.put('/carts/accepto/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          adopted: false
+        },
+      };
+      const result = await cartCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
 
 
 
 
+    // -------------------------------
+    //donation api
 
+    // -------------------------------
+    app.post('/create-payment-intent', async (req, res) => {
+      try {
+        const { donation } = req.body;
+    
+        if (!donation) {
+          throw new Error('Donation amount is required');
+        }
+    
+        const amount = parseInt(donation * 100); // Convert to cents
+        console.log(amount, 'amount inside intent'); // This should log the amount
+    
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: 'usd',
+          payment_method_types: ['card']
+        });
+    
+        res.send({
+          clientSecret: paymentIntent.client_secret
+        });
+      } catch (error) {
+        console.error('Error creating payment intent:', error.message);
+        res.status(500).send({
+          error: error.message
+        });
+      }
+    });
+    // -------------------------------
+  app.post('/donations' , async (req,res)=>{
+    const donation = req.body;
+    const donationResult = await donationCollection.insertOne(donation);
+  console.log('donation info' , donation);
+  res.send(donationResult)
+  })
 
+  app.get('/donations', async (req, res) => {
+    const result = await donationCollection.find().toArray();
+    res.send(result);
+  });
 
 
 
